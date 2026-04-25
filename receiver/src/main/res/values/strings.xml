@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Stream SBS 5.5 Receiver</string>
+    <string name="receiver_waiting">Waiting for sender stream</string>
+</resources>

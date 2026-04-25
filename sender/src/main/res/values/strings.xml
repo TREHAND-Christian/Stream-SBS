@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">Stream SBS 5.5 Sender</string>
+    <string name="title_sender">Stream SBS 5.5 Sender</string>
+    <string name="video_profile">Video Profile</string>
+    <string name="settings">Parametres</string>
+    <string name="close">Fermer</string>
+    <string name="start_stream">Start Stream</string>
+    <string name="stop_stream">Stop Stream</string>
+    <string name="status_idle">Idle</string>
+    <string name="status_searching">Searching receiver...</string>
+    <string name="status_streaming">Streaming</string>
+    <string name="status_applying_profile">Applying video profile...</string>
+    <string name="receiver_not_found">Receiver not found</string>
+    <string name="receiver_found">Receiver %1$s %2$s:%3$d</string>
+    <string name="receiver_render">Receiver Render</string>
+    <string name="camera_label">Camera</string>
+    <string name="camera_on_off">On/Off</string>
+    <string name="camera_opacity">Opacity %.0f%%</string>
+    <string name="mode_glasses">Mode Lunette</string>
+    <string name="mode_tablet">Mode Tablette</string>
+    <string name="resolution_label">Resolution</string>
+    <string name="frame_rate_label">Frame Rate</string>
+    <string name="bitrate_label">Bitrate</string>
+    <string name="zoom_label">Zoom</string>
+    <string name="vertical_zoom_label">Vertical Zoom</string>
+    <string name="horizontal_offset_label">Horizontal Offset</string>
+    <string name="vertical_offset_label">Vertical Offset</string>
+    <string name="render_inactive_tablet">%1$s inactive en mode Tablette</string>
+</resources>
