@@ -10,6 +10,7 @@
     <string name="status_searching">Searching receiver...</string>
     <string name="status_streaming">Streaming</string>
     <string name="status_applying_profile">Applying video profile...</string>
+    <string name="status_select_full_screen_capture">Choisir Ecran entier dans le panneau de capture</string>
     <string name="receiver_not_found">Receiver not found</string>
     <string name="receiver_found">Receiver %1$s %2$s:%3$d</string>
     <string name="receiver_render">Receiver Render</string>

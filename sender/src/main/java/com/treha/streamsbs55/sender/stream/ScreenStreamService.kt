@@ -20,12 +20,14 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.Surface
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.treha.streamsbs55.common.protocol.Ports
 import com.treha.streamsbs55.common.protocol.ReceiverRenderConfig
+import com.treha.streamsbs55.common.protocol.VideoProfiles
 import com.treha.streamsbs55.sender.MainActivity
 import com.treha.streamsbs55.sender.R
 import com.treha.streamsbs55.sender.StreamConfig
@@ -60,24 +62,39 @@ class ScreenStreamService : Service() {
             log("projection stopped")
             stopSelf()
         }
+
+        override fun onCapturedContentVisibilityChanged(isVisible: Boolean) {
+            log("captured content visible: $isVisible")
+        }
+
+        override fun onCapturedContentResize(width: Int, height: Int) {
+            log("captured content size ${width}x${height}")
+        }
     }
 
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        StreamStatusBus.emitStreamState(this, true)
         createChannel()
         startReceiverStatusListener()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val safeIntent = intent ?: return START_NOT_STICKY
-        val config = safeIntent.getParcelableCompat<StreamConfig>(EXTRA_CONFIG) ?: return START_NOT_STICKY
+        val safeIntent = intent ?: return stopInvalidStart()
+        val config = safeIntent.getParcelableCompat<StreamConfig>(EXTRA_CONFIG) ?: return stopInvalidStart()
 
         when (safeIntent.action) {
             ACTION_UPDATE_PROFILE -> updateProfile(config)
             else -> startWithProjection(safeIntent, config)
         }
         return START_STICKY
+    }
+
+    private fun stopInvalidStart(): Int {
+        log("stream start ignored: missing start data")
+        stopSelf()
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
@@ -88,10 +105,17 @@ class ScreenStreamService : Service() {
         projection?.stop()
         serviceScope.cancel()
         isRunning = false
+        StreamStatusBus.emitStreamState(this, false)
+        StreamStatusBus.emit(this, "stream stopped")
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        log("sender task moved away; stream service remains active")
+        super.onTaskRemoved(rootIntent)
+    }
 
     private suspend fun startPipeline(config: StreamConfig) {
         tearDownPipeline()
@@ -336,15 +360,16 @@ class ScreenStreamService : Service() {
     }
 
     private fun handleReceiverStatus(config: ReceiverRenderConfig, fields: Map<String, String>) {
-        StreamStatusBus.emitReceiverStatus(this, config.serialize(), fields)
-        saveReceiverSettings(config)
+        val effectiveConfig = keepRecentLocalVideoProfile(config)
+        StreamStatusBus.emitReceiverStatus(this, effectiveConfig.serialize(), fields)
+        saveReceiverSettings(effectiveConfig)
 
         val current = activeConfig ?: return
         val next = current.copy(
-            width = config.videoWidth,
-            height = config.videoHeight,
-            frameRate = config.videoFrameRate,
-            bitRate = config.videoBitRate,
+            width = effectiveConfig.videoWidth,
+            height = effectiveConfig.videoHeight,
+            frameRate = effectiveConfig.videoFrameRate,
+            bitRate = effectiveConfig.videoBitRate,
         )
         if (next.width == current.width &&
             next.height == current.height &&
@@ -354,6 +379,30 @@ class ScreenStreamService : Service() {
             return
         }
         updateProfile(next)
+    }
+
+    private fun keepRecentLocalVideoProfile(config: ReceiverRenderConfig): ReceiverRenderConfig {
+        val prefs = getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE)
+        val changedAt = prefs.getLong(MainActivity.KEY_LOCAL_VIDEO_PROFILE_CHANGED_AT, 0L)
+        val isFresh = changedAt > 0L && SystemClock.elapsedRealtime() - changedAt <= LOCAL_VIDEO_PROFILE_GRACE_MS
+        if (!isFresh) return config
+
+        val resolution = VideoProfiles.resolutions[
+            prefs.getInt(MainActivity.KEY_RESOLUTION, VideoProfiles.DEFAULT_RESOLUTION_INDEX)
+                .coerceIn(0, VideoProfiles.resolutions.lastIndex),
+        ]
+        return config.copy(
+            videoWidth = resolution.width,
+            videoHeight = resolution.height,
+            videoFrameRate = VideoProfiles.frameRates[
+                prefs.getInt(MainActivity.KEY_FPS, VideoProfiles.DEFAULT_FRAME_RATE_INDEX)
+                    .coerceIn(0, VideoProfiles.frameRates.lastIndex),
+            ].value,
+            videoBitRate = VideoProfiles.bitRates[
+                prefs.getInt(MainActivity.KEY_BITRATE, VideoProfiles.DEFAULT_BIT_RATE_INDEX)
+                    .coerceIn(0, VideoProfiles.bitRates.lastIndex),
+            ].value,
+        )
     }
 
     private fun saveReceiverSettings(config: ReceiverRenderConfig) {
@@ -423,7 +472,12 @@ class ScreenStreamService : Service() {
             .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
             .setContentIntent(pendingIntent)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setLocalOnly(true)
             .build()
     }
 
@@ -447,6 +501,7 @@ class ScreenStreamService : Service() {
         private const val EXTRA_RESULT_CODE = "result_code"
         private const val EXTRA_RESULT_DATA = "result_data"
         private const val EXTRA_CONFIG = "config"
+        private const val LOCAL_VIDEO_PROFILE_GRACE_MS = 5_000L
 
         @Volatile
         var isRunning: Boolean = false

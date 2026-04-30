@@ -24,6 +24,8 @@ import com.treha.streamsbs55.receiver.network.ControlServer
 import com.treha.streamsbs55.receiver.network.DiscoveryResponder
 import com.treha.streamsbs55.receiver.stream.UdpVideoReceiver
 import com.treha.streamsbs55.receiver.stream.VideoStats
+import com.treha.streamsbs55.receiver.view.MenuOverlayRow
+import com.treha.streamsbs55.receiver.view.MenuOverlayState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -343,13 +345,14 @@ class MainActivity : AppCompatActivity() {
     private fun openMenu() {
         menuVisible = true
         menuEditing = false
+        binding.displayModeText.visibility = View.GONE
         renderMenu()
     }
 
     private fun closeMenu() {
         menuVisible = false
         menuEditing = false
-        binding.displayModeText.visibility = View.GONE
+        binding.streamView.setMenuOverlay(null)
         sendRenderConfigToSender()
     }
 
@@ -445,9 +448,29 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderMenu() {
-        val item = MenuItem.entries[selectedMenuIndex]
-        val mode = if (menuEditing) "Edition" else "Selection"
-        val value = when (item) {
+        overlayJob?.cancel()
+        binding.displayModeText.visibility = View.GONE
+        binding.streamView.setMenuOverlay(menuState())
+        sendRenderConfigToSender()
+    }
+
+    private fun menuState(): MenuOverlayState {
+        val title = if (menuEditing) "REGLAGES  [EDITION]" else "REGLAGES"
+        return MenuOverlayState(
+            title = title,
+            rows = MenuItem.entries.mapIndexed { index, item ->
+                MenuOverlayRow(
+                    label = item.label,
+                    value = menuValue(item),
+                    selected = index == selectedMenuIndex,
+                    editing = menuEditing && index == selectedMenuIndex,
+                )
+            },
+        )
+    }
+
+    private fun menuValue(item: MenuItem): String =
+        when (item) {
             MenuItem.RESOLUTION -> VideoProfiles.resolutions[
                 VideoProfiles.resolutionIndex(renderConfig.videoWidth, renderConfig.videoHeight)
             ].label
@@ -463,10 +486,6 @@ class MainActivity : AppCompatActivity() {
             MenuItem.OFFSET_H -> "%.2f".format(renderConfig.horizontalOffset)
             MenuItem.OFFSET_V -> "%.2f".format(renderConfig.verticalOffset)
         }
-        overlayJob?.cancel()
-        showOverlayText("$mode casque | ${item.label} $value")
-        sendRenderConfigToSender()
-    }
 
     private fun showTemporaryMessage(text: String) {
         if (menuVisible) return

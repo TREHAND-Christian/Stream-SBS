@@ -43,6 +43,26 @@ fun splitAnnexBNals(data: ByteArray): List<ByteArray> {
     }.filter { it.isNotEmpty() }
 }
 
+fun splitH264Nals(data: ByteArray): List<ByteArray> =
+    splitAnnexBNals(data).ifEmpty { splitLengthPrefixedNals(data) }
+
+private fun splitLengthPrefixedNals(data: ByteArray): List<ByteArray> {
+    if (data.size < 5) return emptyList()
+    val nals = mutableListOf<ByteArray>()
+    var offset = 0
+    while (offset + 4 <= data.size) {
+        val length = ((data[offset].toInt() and 0xFF) shl 24) or
+            ((data[offset + 1].toInt() and 0xFF) shl 16) or
+            ((data[offset + 2].toInt() and 0xFF) shl 8) or
+            (data[offset + 3].toInt() and 0xFF)
+        offset += 4
+        if (length <= 0 || offset + length > data.size) return emptyList()
+        nals += data.copyOfRange(offset, offset + length)
+        offset += length
+    }
+    return if (offset == data.size) nals else emptyList()
+}
+
 private data class NalStart(
     val startCodeIndex: Int,
     val payloadIndex: Int,

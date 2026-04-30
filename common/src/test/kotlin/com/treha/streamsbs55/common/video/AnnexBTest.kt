@@ -33,4 +33,39 @@ class AnnexBTest {
     fun splitAnnexBNalsReturnsEmptyListWithoutStartCode() {
         assertTrue(splitAnnexBNals(byteArrayOf(0x67, 0x11)).isEmpty())
     }
+
+    @Test
+    fun splitH264NalsKeepsAnnexBCompatibility() {
+        val data = byteArrayOf(
+            0, 0, 0, 1, 0x67, 0x11,
+            0, 0, 0, 1, 0x68, 0x22,
+        )
+
+        val nals = splitH264Nals(data)
+
+        assertEquals(2, nals.size)
+        assertContentEquals(byteArrayOf(0x67, 0x11), nals[0])
+        assertContentEquals(byteArrayOf(0x68, 0x22), nals[1])
+    }
+
+    @Test
+    fun splitH264NalsSupportsLengthPrefixedOutput() {
+        val data = byteArrayOf(
+            0, 0, 0, 2, 0x67, 0x11,
+            0, 0, 0, 3, 0x65, 0x22, 0x33,
+        )
+
+        val nals = splitH264Nals(data)
+
+        assertEquals(2, nals.size)
+        assertContentEquals(byteArrayOf(0x67, 0x11), nals[0])
+        assertContentEquals(byteArrayOf(0x65, 0x22, 0x33), nals[1])
+    }
+
+    @Test
+    fun splitH264NalsRejectsMalformedLengthPrefixedOutput() {
+        val data = byteArrayOf(0, 0, 0, 4, 0x67, 0x11)
+
+        assertTrue(splitH264Nals(data).isEmpty())
+    }
 }

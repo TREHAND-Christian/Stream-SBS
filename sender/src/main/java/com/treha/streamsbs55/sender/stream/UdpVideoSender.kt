@@ -5,7 +5,7 @@ import android.media.MediaFormat
 import com.treha.streamsbs55.common.video.Rtp
 import com.treha.streamsbs55.common.video.firstNal
 import com.treha.streamsbs55.common.video.ptsUsToRtpTimestamp
-import com.treha.streamsbs55.common.video.splitAnnexBNals
+import com.treha.streamsbs55.common.video.splitH264Nals
 import com.treha.streamsbs55.common.video.toByteArray
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -41,7 +41,7 @@ class UdpVideoSender(
     fun sendFrame(data: ByteArray, ptsUs: Long, flags: Int) {
         val timestamp = ptsUsToRtpTimestamp(ptsUs)
         val sentAtMs = System.currentTimeMillis()
-        val nals = splitAnnexBNals(data)
+        val nals = splitH264Nals(data)
         if (nals.isEmpty()) return
         if ((flags and MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
             sps?.let { sendNal(it, timestamp, sentAtMs, marker = false) }

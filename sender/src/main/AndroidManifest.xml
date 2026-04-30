@@ -29,6 +29,7 @@
         <service
             android:name=".stream.ScreenStreamService"
             android:exported="false"
+            android:stopWithTask="false"
             android:foregroundServiceType="mediaProjection" />
     </application>
 </manifest>
