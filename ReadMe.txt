@@ -1,81 +1,159 @@
-Stream-SBS-5.5
-==============
+# Stream SBS
 
-Cette application est destinee principalement a afficher la vue camera d'un drone
-dans un casque VR maison.
+Stream SBS est une application Android composee de deux modules qui permet de diffuser l'ecran d'un smartphone vers un autre smartphone sur le meme reseau local, avec un rendu Side-by-Side (SBS) sur l'appareil recepteur.
 
-Contexte d'utilisation
-----------------------
+Le projet fournit deux applications :
 
-Le systeme utilise deux smartphones Android :
+- `sender` : capture l'ecran du smartphone emetteur, encode le flux video et l'envoie sur le reseau local.
+- `receiver` : detecte l'emetteur, recoit le flux video et l'affiche en mode SBS ou en affichage simple.
 
-1. Smartphone Sender : Samsung A14
-   - Connecte a la manette du drone DJI Mini 2 SE.
-   - Affiche normalement l'application DJI Fly.
-   - Capture son propre ecran avec MediaProjection.
-   - Encode et envoie l'image de l'ecran vers le Receiver en streaming local.
-   - Sert aussi a regler le casque et le rendu du Receiver.
+## Fonctionnalites
 
-2. Smartphone Receiver : Samsung A7
-   - Installe dans le casque VR maison.
-   - Recoit le flux video envoye par le Sender.
-   - Affiche l'ecran du A14, donc l'application DJI Fly et la vue camera du drone.
-   - Affiche le flux en mode adapte au casque, notamment en SBS.
-   - Peut afficher sa propre camera en surimpression avec une opacite reglable.
+- Streaming d'ecran Android vers Android en reseau local.
+- Rendu Side-by-Side pour afficher deux vues synchronisees du meme flux.
+- Mode d'affichage simple pour utiliser le recepteur comme ecran classique.
+- Detection automatique du recepteur par broadcast UDP.
+- Encodage video H.264 via `MediaCodec`.
+- Transport video UDP avec paquets RTP et fragmentation FU-A.
+- Decodeur H.264 cote recepteur via `MediaCodec`.
+- Profils video configurables :
+  - resolutions de 854x480 a 2220x1080 ;
+  - 20, 24 ou 30 fps ;
+  - debit de 3 a 10 Mbps.
+- Reglages de rendu synchronises entre les deux appareils :
+  - activation du SBS ;
+  - zoom horizontal et vertical ;
+  - decalage horizontal et vertical ;
+  - opacite d'une superposition camera optionnelle ;
+  - profil video.
+- Menu de reglages directement disponible sur le recepteur avec les boutons de volume.
+- Indicateurs de latence, FPS rendu et profil video courant.
+- Service de streaming au premier plan cote emetteur.
 
-Role de l'overlay camera du Receiver
-------------------------------------
+## Architecture
 
-Le Receiver etant dans le casque, son ecran tactile n'est pas accessible.
-L'option camera avec opacite permet de voir partiellement l'environnement reel :
+Le depot est organise en trois modules Gradle :
 
-- la manette du drone,
-- les mains,
-- l'ecran du Sender,
-- les controles physiques accessibles.
+```text
+common/    Code partage : protocoles, ports, profils video, RTP, helpers H.264
+sender/    Application emettrice : capture d'ecran, encodage H.264, envoi UDP
+receiver/  Application receptrice : decodage H.264, rendu OpenGL, controles locaux
+```
 
-Cette fonction sert de passthrough partiel pour utiliser le casque sans devoir le
-retirer.
+### Flux reseau
 
-Contraintes importantes
------------------------
+Les deux smartphones doivent etre connectes au meme reseau local.
 
-- Sur le Receiver, l'ecran tactile n'est pas accessible une fois le telephone dans
-  le casque.
-- Les seuls boutons accessibles sur le Receiver sont Power, Vol+ et Vol-.
-- Le Sender est l'interface principale pour configurer le Receiver.
-- La latence doit rester faible pour que le pilotage du drone reste utilisable.
-- Les reglages doivent tenir sur un seul ecran, sans defilement.
-- Les ecrans de l'interface Sender doivent etre separes :
-  - mode normal : statut, demarrage du flux, reglages video du flux,
-  - mode reglages : zoom, offsets, mode lunettes/tablette, camera et opacite.
+Ports utilises :
 
-Modules du projet
------------------
+| Port | Usage |
+| --- | --- |
+| `5500/UDP` | Flux video RTP/H.264 |
+| `5501/UDP` | Decouverte du recepteur |
+| `5502/UDP` | Envoi des reglages vers le recepteur |
+| `5503/UDP` | Retour d'etat du recepteur vers l'emetteur |
 
-- sender
-  Application installee sur le A14.
-  Elle capture l'ecran du telephone, envoie le flux video au Receiver et permet de
-  modifier les reglages de rendu du casque.
+## Prerequis
 
-- receiver
-  Application installee sur le A7.
-  Elle recoit le flux video, l'affiche dans le casque VR et gere l'overlay camera.
+- Android Studio recent.
+- JDK 17.
+- Android SDK avec `compileSdk 34`.
+- Deux appareils Android sur le meme reseau local.
+- Android 10 ou plus recent (`minSdk 29`).
 
-- common
-  Code partage entre Sender et Receiver : protocoles reseau, ports, configuration
-  de rendu, paquets video.
+## Compilation
 
-Packages Android
-----------------
+Depuis la racine du depot :
 
-- Sender : com.treha.streamsbs55.sender
-- Receiver : com.treha.streamsbs55.receiver
-- Common : com.treha.streamsbs55.common
+```bash
+./gradlew assembleDebug
+```
 
-Projet actif
-------------
+Sous Windows :
 
-Le seul dossier de travail a utiliser pour ce projet est :
+```powershell
+.\gradlew.bat assembleDebug
+```
 
-C:\Users\treha\Desktop\Stream-SBS-5.5
+Les APK debug sont generes dans :
+
+```text
+sender/build/outputs/apk/debug/
+receiver/build/outputs/apk/debug/
+```
+
+## Installation
+
+Installer l'application `receiver` sur le smartphone qui affichera le flux.
+
+Installer l'application `sender` sur le smartphone dont l'ecran sera diffuse.
+
+Exemple avec ADB :
+
+```bash
+adb install receiver/build/outputs/apk/debug/receiver-debug.apk
+adb install sender/build/outputs/apk/debug/sender-debug.apk
+```
+
+## Utilisation
+
+1. Connecter les deux smartphones au meme reseau local.
+2. Lancer `Stream SBS Receiver` sur le smartphone recepteur.
+3. Lancer `Stream SBS Sender` sur le smartphone emetteur.
+4. Choisir le profil video si besoin.
+5. Appuyer sur `Start Stream`.
+6. Accepter la capture d'ecran Android et selectionner l'ecran entier.
+7. Le recepteur affiche le flux en mode SBS.
+
+## Controles du recepteur
+
+Le recepteur peut etre pilote avec les boutons de volume :
+
+- Volume haut : activer/desactiver la superposition camera lorsque le menu est ferme.
+- Volume bas : ouvrir le menu.
+- Volume haut/bas dans le menu : naviguer entre les options.
+- Appui long sur volume haut : entrer ou sortir du mode edition.
+- Appui long sur volume bas : fermer le menu.
+
+## Reglages disponibles
+
+- Definition du flux video.
+- FPS cible.
+- Debit video.
+- Opacite de la camera.
+- Zoom horizontal.
+- Zoom vertical.
+- Calage horizontal.
+- Calage vertical.
+
+## Tests
+
+Le module `common` contient des tests unitaires pour :
+
+- le parsing H.264 Annex B et length-prefixed ;
+- la logique de drop de frames basse latence ;
+- la serialisation des reglages de rendu.
+
+Lancer les tests :
+
+```bash
+./gradlew test
+```
+
+Sous Windows :
+
+```powershell
+.\gradlew.bat test
+```
+
+## Notes techniques
+
+- Le flux video est encode en H.264 AVC.
+- Le transport utilise UDP pour privilegier la faible latence.
+- Les paquets video incluent des metadonnees de timestamp, resolution, FPS cible et bitrate.
+- Le recepteur jette les frames trop anciennes afin de conserver un rendu reactif.
+- Le rendu SBS est assure par une vue OpenGL ES qui dessine le flux dans deux viewports.
+
+## Licence
+
+Licence a definir.
