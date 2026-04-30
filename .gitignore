@@ -11,6 +11,10 @@ build/
 *.iws
 .kotlin/
 
+# Eclipse / Buildship
+.project
+.settings/
+
 # Local machine config
 local.properties
 
