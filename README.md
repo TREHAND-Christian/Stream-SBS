@@ -156,4 +156,4 @@ Sous Windows :
 
 ## Licence
 
-Licence a definir.
+Ce projet est distribue sous licence MIT. Voir le fichier `LICENSE`.
