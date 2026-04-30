@@ -57,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private var volumeDownPress: ButtonPress? = null
     private var senderAddress: InetAddress? = null
     private var latestVideoStats: VideoStats? = null
+    private var receiverConfigVersion = 0L
 
     private enum class MenuItem(val label: String) {
         RESOLUTION("Definition"),
@@ -403,6 +404,7 @@ class MainActivity : AppCompatActivity() {
         }
 
     private fun applyRenderConfig() {
+        receiverConfigVersion += 1
         binding.streamView.applyConfig(renderConfig)
         applyCameraState()
         sendRenderConfigToSender()
@@ -412,12 +414,8 @@ class MainActivity : AppCompatActivity() {
         val address = senderAddress ?: return
         val status = buildString {
             append(renderConfig.serialize())
-            append(";remote_active=")
-            append(if (menuVisible) 1 else 0)
-            append(";remote_index=")
-            append(selectedMenuIndex)
-            append(";remote_editing=")
-            append(if (menuEditing) 1 else 0)
+            append(";receiver_config_version=")
+            append(receiverConfigVersion)
             latestVideoStats?.let { stats ->
                 append(";video_latency_ms=")
                 append(stats.latencyMs)

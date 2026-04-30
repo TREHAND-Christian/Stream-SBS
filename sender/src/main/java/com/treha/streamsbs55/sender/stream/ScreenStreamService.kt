@@ -55,6 +55,7 @@ class ScreenStreamService : Service() {
     private var encodeJob: Job? = null
     private var receiverStatusJob: Job? = null
     private var activeConfig: StreamConfig? = null
+    private var lastReceiverConfigVersion = 0L
     private val pipelineMutex = Mutex()
 
     private val projectionCallback = object : MediaProjection.Callback() {
@@ -360,7 +361,7 @@ class ScreenStreamService : Service() {
     }
 
     private fun handleReceiverStatus(config: ReceiverRenderConfig, fields: Map<String, String>) {
-        val effectiveConfig = keepRecentLocalVideoProfile(config)
+        val effectiveConfig = keepRecentLocalVideoProfile(config, fields)
         StreamStatusBus.emitReceiverStatus(this, effectiveConfig.serialize(), fields)
         saveReceiverSettings(effectiveConfig)
 
@@ -381,8 +382,12 @@ class ScreenStreamService : Service() {
         updateProfile(next)
     }
 
-    private fun keepRecentLocalVideoProfile(config: ReceiverRenderConfig): ReceiverRenderConfig {
+    private fun keepRecentLocalVideoProfile(
+        config: ReceiverRenderConfig,
+        fields: Map<String, String>,
+    ): ReceiverRenderConfig {
         val prefs = getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE)
+        if (receiverConfigChanged(fields, prefs)) return config
         val changedAt = prefs.getLong(MainActivity.KEY_LOCAL_VIDEO_PROFILE_CHANGED_AT, 0L)
         val isFresh = changedAt > 0L && SystemClock.elapsedRealtime() - changedAt <= LOCAL_VIDEO_PROFILE_GRACE_MS
         if (!isFresh) return config
@@ -403,6 +408,17 @@ class ScreenStreamService : Service() {
                     .coerceIn(0, VideoProfiles.bitRates.lastIndex),
             ].value,
         )
+    }
+
+    private fun receiverConfigChanged(fields: Map<String, String>, prefs: android.content.SharedPreferences): Boolean {
+        val version = fields["receiver_config_version"]?.toLongOrNull() ?: return false
+        if (version <= lastReceiverConfigVersion) return false
+        lastReceiverConfigVersion = version
+        prefs.edit()
+            .putLong(MainActivity.KEY_LAST_RECEIVER_CONFIG_VERSION, version)
+            .putLong(MainActivity.KEY_LOCAL_VIDEO_PROFILE_CHANGED_AT, 0L)
+            .apply()
+        return true
     }
 
     private fun saveReceiverSettings(config: ReceiverRenderConfig) {

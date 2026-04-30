@@ -8,8 +8,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.SharedPreferences
-import android.graphics.Color
-import android.graphics.Typeface
 import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -20,7 +18,6 @@ import android.view.WindowManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.SeekBar
-import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -55,6 +52,7 @@ class MainActivity : AppCompatActivity() {
         const val KEY_HOFF = "hoff"
         const val KEY_VOFF = "voff"
         const val KEY_LOCAL_VIDEO_PROFILE_CHANGED_AT = "local_video_profile_changed_at"
+        const val KEY_LAST_RECEIVER_CONFIG_VERSION = "last_receiver_config_version"
         private const val REQUEST_NOTIFICATIONS = 44
         private const val LOCAL_VIDEO_PROFILE_GRACE_MS = 5_000L
 
@@ -74,11 +72,7 @@ class MainActivity : AppCompatActivity() {
     private var profileUpdateJob: Job? = null
     private var receiverDiscoveryJob: Job? = null
     private var applyingReceiverStatus = false
-    private var remoteSelectionActive = false
-    private var remoteSelectedIndex = -1
-    private var remoteSelectionEditing = false
     private var settingsPinnedByUser = false
-    private var settingsDismissedByUser = false
     private var receiverLatencyLabel: String? = null
     private val logs = ArrayDeque<String>()
 
@@ -141,12 +135,10 @@ class MainActivity : AppCompatActivity() {
 
         binding.settingsButton.setOnClickListener {
             settingsPinnedByUser = true
-            settingsDismissedByUser = false
             updateSettingsPanelVisibility()
         }
         binding.normalModeButton.setOnClickListener {
             settingsPinnedByUser = false
-            settingsDismissedByUser = true
             updateSettingsPanelVisibility()
         }
         binding.toggleStreamButton.setOnClickListener {
@@ -367,7 +359,6 @@ class MainActivity : AppCompatActivity() {
         binding.verticalZoomSeekBar.alpha = alpha
         binding.horizontalOffsetSeekBar.alpha = alpha
         binding.verticalOffsetSeekBar.alpha = alpha
-        applyRemoteSelectionHighlight()
     }
 
     private fun isGlassesMode(): Boolean = prefs.getBoolean(KEY_GLASSES_MODE, true)
@@ -470,7 +461,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyReceiverRenderStatus(config: ReceiverRenderConfig, fields: Map<String, String>) {
-        val effectiveConfig = if (localVideoProfileChangeIsFresh()) {
+        val receiverConfigChanged = markReceiverConfigVersion(fields)
+        val effectiveConfig = if (!receiverConfigChanged && localVideoProfileChangeIsFresh()) {
             config.copy(
                 videoWidth = currentResolution().width,
                 videoHeight = currentResolution().height,
@@ -482,12 +474,6 @@ class MainActivity : AppCompatActivity() {
         }
         receiverLatencyLabel = buildLatencyLabel(fields)
         renderReceiverText()
-        remoteSelectionActive = fields["remote_active"] == "1"
-        remoteSelectedIndex = fields["remote_index"]?.toIntOrNull() ?: -1
-        remoteSelectionEditing = fields["remote_editing"] == "1"
-        if (!remoteSelectionActive) {
-            settingsDismissedByUser = false
-        }
         applyingReceiverStatus = true
         prefs.edit()
             .putBoolean(KEY_GLASSES_MODE, effectiveConfig.sbsEnabled)
@@ -517,9 +503,18 @@ class MainActivity : AppCompatActivity() {
         }
         updateModeUi()
         renderLabels()
-        updateSettingsPanelVisibility()
-        applyRemoteSelectionHighlight()
         appendLog("receiver local settings synced")
+    }
+
+    private fun markReceiverConfigVersion(fields: Map<String, String>): Boolean {
+        val version = fields["receiver_config_version"]?.toLongOrNull() ?: return false
+        val lastVersion = prefs.getLong(KEY_LAST_RECEIVER_CONFIG_VERSION, 0L)
+        if (version <= lastVersion) return false
+        prefs.edit()
+            .putLong(KEY_LAST_RECEIVER_CONFIG_VERSION, version)
+            .putLong(KEY_LOCAL_VIDEO_PROFILE_CHANGED_AT, 0L)
+            .apply()
+        return true
     }
 
     private fun localVideoProfileChangeIsFresh(): Boolean {
@@ -577,58 +572,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateSettingsPanelVisibility() {
-        val showSettings = settingsPinnedByUser || (remoteSelectionActive && !settingsDismissedByUser)
-        binding.settingsPage.visibility = if (showSettings) {
+        binding.settingsPage.visibility = if (settingsPinnedByUser) {
             View.VISIBLE
         } else {
             View.GONE
         }
-        binding.streamPage.visibility = if (showSettings) {
+        binding.streamPage.visibility = if (settingsPinnedByUser) {
             View.GONE
         } else {
             View.VISIBLE
         }
     }
-
-    private fun applyRemoteSelectionHighlight() {
-        if (!::binding.isInitialized) return
-        remoteSelectionTargets().forEach { target ->
-            target.label.setBackgroundColor(Color.TRANSPARENT)
-            target.label.setTypeface(null, Typeface.NORMAL)
-            target.control.setBackgroundColor(Color.TRANSPARENT)
-        }
-
-        val target = remoteSelectionTargets().getOrNull(remoteSelectedIndex)
-        if (!remoteSelectionActive || target == null) {
-            binding.remoteSelectionText.visibility = View.GONE
-            return
-        }
-
-        val color = if (remoteSelectionEditing) Color.parseColor("#F7B733") else Color.parseColor("#D8EADF")
-        val mode = if (remoteSelectionEditing) "Edition" else "Selection"
-        target.label.setBackgroundColor(color)
-        target.label.setTypeface(null, Typeface.BOLD)
-        target.control.setBackgroundColor(color)
-        binding.remoteSelectionText.text = "$mode casque : ${target.name}"
-        binding.remoteSelectionText.visibility = View.VISIBLE
-    }
-
-    private fun remoteSelectionTargets(): List<RemoteSelectionTarget> = listOf(
-        RemoteSelectionTarget("Definition", binding.statusText, binding.resolutionSpinner),
-        RemoteSelectionTarget("FPS", binding.statusText, binding.fpsSpinner),
-        RemoteSelectionTarget("Bitrate", binding.statusText, binding.bitrateSpinner),
-        RemoteSelectionTarget("Opacite camera", binding.cameraOpacityLabel, binding.cameraOpacitySeekBar),
-        RemoteSelectionTarget("Zoom H", binding.zoomLabel, binding.zoomSeekBar),
-        RemoteSelectionTarget("Zoom V", binding.verticalZoomLabel, binding.verticalZoomSeekBar),
-        RemoteSelectionTarget("Callage H", binding.horizontalOffsetLabel, binding.horizontalOffsetSeekBar),
-        RemoteSelectionTarget("Callage V", binding.verticalOffsetLabel, binding.verticalOffsetSeekBar),
-    )
-
-    private data class RemoteSelectionTarget(
-        val name: String,
-        val label: TextView,
-        val control: View,
-    )
 
     private fun currentStreamConfig(host: String, name: String): StreamConfig {
         val resolution = currentResolution()
