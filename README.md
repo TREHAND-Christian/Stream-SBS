@@ -1,81 +1,81 @@
 # Stream SBS
 
-Stream SBS est une application Android composee de deux modules qui permet de diffuser l'ecran d'un smartphone vers un autre smartphone sur le meme reseau local, avec un rendu Side-by-Side (SBS) sur l'appareil recepteur.
+Stream SBS is an Android project made of two apps that stream the screen of one smartphone to another smartphone on the same local network, with a Side-by-Side (SBS) display mode on the receiver.
 
-Le projet fournit deux applications :
+The project provides two Android apps:
 
-- `sender` : capture l'ecran du smartphone emetteur, encode le flux video et l'envoie sur le reseau local.
-- `receiver` : detecte l'emetteur, recoit le flux video et l'affiche en mode SBS ou en affichage simple.
+- `sender`: captures the sender phone screen, encodes the video stream, and sends it over the local network.
+- `receiver`: discovers the sender/receiver pair, receives the video stream, and renders it in SBS mode or in a single full-screen view.
 
-## Fonctionnalites
+## Features
 
-- Streaming d'ecran Android vers Android en reseau local.
-- Rendu Side-by-Side pour afficher deux vues synchronisees du meme flux.
-- Mode d'affichage simple pour utiliser le recepteur comme ecran classique.
-- Detection automatique du recepteur par broadcast UDP.
-- Encodage video H.264 via `MediaCodec`.
-- Transport video UDP avec paquets RTP et fragmentation FU-A.
-- Decodeur H.264 cote recepteur via `MediaCodec`.
-- Profils video configurables :
-  - resolutions de 854x480 a 2220x1080 ;
-  - 20, 24 ou 30 fps ;
-  - debit de 3 a 10 Mbps.
-- Reglages de rendu synchronises entre les deux appareils :
-  - activation du SBS ;
-  - zoom horizontal et vertical ;
-  - decalage horizontal et vertical ;
-  - opacite d'une superposition camera optionnelle ;
-  - profil video.
-- Menu de reglages directement disponible sur le recepteur avec les boutons de volume.
-- Indicateurs de latence, FPS rendu et profil video courant.
-- Service de streaming au premier plan cote emetteur.
+- Android-to-Android screen streaming over a local network.
+- Side-by-Side rendering with two synchronized views of the same stream.
+- Single-view mode for standard display use.
+- Automatic receiver discovery through UDP broadcast.
+- H.264 screen encoding with `MediaCodec`.
+- UDP video transport using RTP packets and FU-A fragmentation.
+- H.264 decoding on the receiver with `MediaCodec`.
+- Configurable video profiles:
+  - resolutions from 854x480 to 2220x1080;
+  - 20, 24, or 30 fps;
+  - bitrate from 3 to 10 Mbps.
+- Render settings synchronized between both devices:
+  - SBS mode;
+  - horizontal and vertical zoom;
+  - horizontal and vertical offset;
+  - optional camera overlay opacity;
+  - video profile.
+- Receiver-side settings menu controlled with the volume buttons.
+- Latency, rendered FPS, and active video profile indicators.
+- Foreground streaming service on the sender.
 
 ## Architecture
 
-Le depot est organise en trois modules Gradle :
+The repository is split into three Gradle modules:
 
 ```text
-common/    Code partage : protocoles, ports, profils video, RTP, helpers H.264
-sender/    Application emettrice : capture d'ecran, encodage H.264, envoi UDP
-receiver/  Application receptrice : decodage H.264, rendu OpenGL, controles locaux
+common/    Shared code: protocols, ports, video profiles, RTP, H.264 helpers
+sender/    Sender app: screen capture, H.264 encoding, UDP streaming
+receiver/  Receiver app: H.264 decoding, OpenGL rendering, local controls
 ```
 
-### Flux reseau
+### Network Flow
 
-Les deux smartphones doivent etre connectes au meme reseau local.
+Both smartphones must be connected to the same local network.
 
-Ports utilises :
+Used ports:
 
-| Port | Usage |
+| Port | Purpose |
 | --- | --- |
-| `5500/UDP` | Flux video RTP/H.264 |
-| `5501/UDP` | Decouverte du recepteur |
-| `5502/UDP` | Envoi des reglages vers le recepteur |
-| `5503/UDP` | Retour d'etat du recepteur vers l'emetteur |
+| `5500/UDP` | RTP/H.264 video stream |
+| `5501/UDP` | Receiver discovery |
+| `5502/UDP` | Render settings sent to the receiver |
+| `5503/UDP` | Receiver status sent back to the sender |
 
-## Prerequis
+## Requirements
 
-- Android Studio recent.
+- Android Studio.
 - JDK 17.
-- Android SDK avec `compileSdk 34`.
-- Deux appareils Android sur le meme reseau local.
-- Android 10 ou plus recent (`minSdk 29`).
+- Android SDK with `compileSdk 34`.
+- Two Android devices on the same local network.
+- Android 10 or newer (`minSdk 29`).
 
-## Compilation
+## Build
 
-Depuis la racine du depot :
+From the repository root:
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-Sous Windows :
+On Windows:
 
 ```powershell
 .\gradlew.bat assembleDebug
 ```
 
-Les APK debug sont generes dans :
+Debug APKs are generated in:
 
 ```text
 sender/build/outputs/apk/debug/
@@ -84,76 +84,85 @@ receiver/build/outputs/apk/debug/
 
 ## Installation
 
-Installer l'application `receiver` sur le smartphone qui affichera le flux.
+Install the `receiver` app on the smartphone that will display the stream.
 
-Installer l'application `sender` sur le smartphone dont l'ecran sera diffuse.
+Install the `sender` app on the smartphone whose screen will be streamed.
 
-Exemple avec ADB :
+Example with ADB:
 
 ```bash
 adb install receiver/build/outputs/apk/debug/receiver-debug.apk
 adb install sender/build/outputs/apk/debug/sender-debug.apk
 ```
 
-## Utilisation
+## Usage
 
-1. Connecter les deux smartphones au meme reseau local.
-2. Lancer `Stream SBS Receiver` sur le smartphone recepteur.
-3. Lancer `Stream SBS Sender` sur le smartphone emetteur.
-4. Choisir le profil video si besoin.
-5. Appuyer sur `Start Stream`.
-6. Accepter la capture d'ecran Android et selectionner l'ecran entier.
-7. Le recepteur affiche le flux en mode SBS.
+1. Connect both smartphones to the same local network.
+2. Start `Stream SBS Receiver` on the receiver phone.
+3. Start `Stream SBS Sender` on the sender phone.
+4. Select a video profile if needed.
+5. Tap `Start Stream`.
+6. Accept the Android screen capture prompt and select the full screen.
+7. The receiver displays the stream in SBS mode.
 
-## Controles du recepteur
+## Receiver Controls
 
-Le recepteur peut etre pilote avec les boutons de volume :
+The receiver can be controlled with the volume buttons:
 
-- Volume haut : activer/desactiver la superposition camera lorsque le menu est ferme.
-- Volume bas : ouvrir le menu.
-- Volume haut/bas dans le menu : naviguer entre les options.
-- Appui long sur volume haut : entrer ou sortir du mode edition.
-- Appui long sur volume bas : fermer le menu.
+- Volume up: toggle the optional camera overlay when the menu is closed.
+- Volume down: open the menu.
+- Volume up/down inside the menu: navigate between options.
+- Long press volume up: enter or leave edit mode.
+- Long press volume down: close the menu.
 
-## Reglages disponibles
+## Available Settings
 
-- Definition du flux video.
-- FPS cible.
-- Debit video.
-- Opacite de la camera.
-- Zoom horizontal.
-- Zoom vertical.
-- Calage horizontal.
-- Calage vertical.
+- Video resolution.
+- Target FPS.
+- Video bitrate.
+- Camera opacity.
+- Horizontal zoom.
+- Vertical zoom.
+- Horizontal offset.
+- Vertical offset.
 
 ## Tests
 
-Le module `common` contient des tests unitaires pour :
+The `common` module includes unit tests for:
 
-- le parsing H.264 Annex B et length-prefixed ;
-- la logique de drop de frames basse latence ;
-- la serialisation des reglages de rendu.
+- H.264 Annex B and length-prefixed parsing;
+- low-latency frame dropping;
+- render settings serialization.
 
-Lancer les tests :
+Run tests:
 
 ```bash
 ./gradlew test
 ```
 
-Sous Windows :
+On Windows:
 
 ```powershell
 .\gradlew.bat test
 ```
 
-## Notes techniques
+## Release APKs
 
-- Le flux video est encode en H.264 AVC.
-- Le transport utilise UDP pour privilegier la faible latence.
-- Les paquets video incluent des metadonnees de timestamp, resolution, FPS cible et bitrate.
-- Le recepteur jette les frames trop anciennes afin de conserver un rendu reactif.
-- Le rendu SBS est assure par une vue OpenGL ES qui dessine le flux dans deux viewports.
+Installable debug APKs are published from GitHub releases:
 
-## Licence
+- `stream-sbs-sender-<version>-debug.apk`
+- `stream-sbs-receiver-<version>-debug.apk`
 
-Ce projet est distribue sous licence MIT. Voir le fichier `LICENSE`.
+These APKs are intended for direct testing and local installation. Production signing is not configured in this repository.
+
+## Technical Notes
+
+- The video stream is encoded as H.264 AVC.
+- UDP is used to favor low latency.
+- Video packets include timestamp, resolution, target FPS, and bitrate metadata.
+- The receiver drops stale frames to keep rendering responsive.
+- SBS rendering is handled by an OpenGL ES view that draws the stream into two viewports.
+
+## License
+
+This project is distributed under the MIT license. See `LICENSE`.

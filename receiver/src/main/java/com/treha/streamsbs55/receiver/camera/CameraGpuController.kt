@@ -7,10 +7,13 @@ import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraDevice
 import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.params.OutputConfiguration
+import android.hardware.camera2.params.SessionConfiguration
 import android.os.Handler
 import android.os.HandlerThread
 import android.view.Surface
 import androidx.core.content.ContextCompat
+import java.util.concurrent.Executor
 
 class CameraGpuController(
     private val context: Context,
@@ -23,6 +26,7 @@ class CameraGpuController(
     private var cameraDevice: CameraDevice? = null
     private var captureSession: CameraCaptureSession? = null
     private var started = false
+    private val cameraExecutor = Executor { command -> cameraHandler.post(command) }
 
     fun start() {
         if (started) return
@@ -80,8 +84,10 @@ class CameraGpuController(
             set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
         }
 
-        camera.createCaptureSession(
-            listOf(surface),
+        val sessionConfig = SessionConfiguration(
+            SessionConfiguration.SESSION_REGULAR,
+            listOf(OutputConfiguration(surface)),
+            cameraExecutor,
             object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(session: CameraCaptureSession) {
                     captureSession = session
@@ -93,8 +99,8 @@ class CameraGpuController(
                     onStatus("camera configure failed")
                 }
             },
-            cameraHandler,
         )
+        camera.createCaptureSession(sessionConfig)
     }
 
     override fun close() {

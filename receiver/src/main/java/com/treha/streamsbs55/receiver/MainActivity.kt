@@ -66,8 +66,8 @@ class MainActivity : AppCompatActivity() {
         CAMERA_OPACITY("Opacite cam"),
         ZOOM_H("Zoom H"),
         ZOOM_V("Zoom V"),
-        OFFSET_H("Callage H"),
-        OFFSET_V("Callage V"),
+        OFFSET_H("Calage H"),
+        OFFSET_V("Calage V"),
     }
 
     private data class ButtonPress(

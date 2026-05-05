@@ -13,7 +13,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Stream-SBS-5.5"
+rootProject.name = "Stream-SBS"
 include(":common")
 include(":sender")
 include(":receiver")
