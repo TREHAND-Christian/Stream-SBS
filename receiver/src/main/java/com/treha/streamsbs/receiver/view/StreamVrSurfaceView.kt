@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.SurfaceTexture
 import android.opengl.GLES11Ext
@@ -55,15 +54,6 @@ class StreamVrSurfaceView @JvmOverloads constructor(
         }
         requestRender()
     }
-
-    fun setStatusOverlay(text: String?) {
-        queueEvent {
-            renderer.setStatusOverlay(text)
-        }
-        requestRender()
-    }
-
-    fun computeDisplayRects(): List<Rect> = renderer.computeDisplayRects(width, height)
 }
 
 data class MenuOverlayState(
@@ -106,11 +96,8 @@ private class StreamRenderer : GLSurfaceView.Renderer, SurfaceTexture.OnFrameAva
     private var menuTextureHandle = 0
     private var menuAlphaHandle = 0
     private var menuTextureId = 0
-    private var statusTextureId = 0
     private var menuBitmap: Bitmap? = null
     private var menuDirty = false
-    private var statusBitmap: Bitmap? = null
-    private var statusDirty = false
     private val streamTexMatrix = FloatArray(16)
     private val cameraTexMatrix = FloatArray(16)
     private val identityMatrix = FloatArray(16)
@@ -153,7 +140,6 @@ private class StreamRenderer : GLSurfaceView.Renderer, SurfaceTexture.OnFrameAva
         streamTextureId = createExternalTexture()
         cameraTextureId = createExternalTexture()
         menuTextureId = createTexture2d()
-        statusTextureId = createTexture2d()
 
         streamSurfaceTexture = SurfaceTexture(streamTextureId).apply {
             setOnFrameAvailableListener(this@StreamRenderer)
@@ -223,7 +209,6 @@ private class StreamRenderer : GLSurfaceView.Renderer, SurfaceTexture.OnFrameAva
             GLES20.glDisable(GLES20.GL_BLEND)
         }
         drawMenuOverlay()
-        drawStatusOverlay()
     }
 
     private fun correctedCameraTexMatrix(): FloatArray {
@@ -265,45 +250,6 @@ private class StreamRenderer : GLSurfaceView.Renderer, SurfaceTexture.OnFrameAva
         menuBitmap?.recycle()
         menuBitmap = state?.let(::createMenuBitmap)
         menuDirty = true
-    }
-
-    fun setStatusOverlay(text: String?) {
-        statusBitmap?.recycle()
-        statusBitmap = text?.takeIf { it.isNotBlank() }?.let(::createStatusBitmap)
-        statusDirty = true
-    }
-
-    fun computeDisplayRects(viewWidth: Int, viewHeight: Int): List<Rect> {
-        if (viewWidth <= 0 || viewHeight <= 0) return emptyList()
-        return if (config.sbsEnabled) {
-            val eyeWidth = viewWidth / 2
-            val frameHeight = if (config.fullFrameEnabled) {
-                (eyeWidth * 9f / 16f).toInt().coerceAtLeast(1)
-            } else {
-                viewHeight
-            }
-            val top = if (config.fullFrameEnabled) {
-                ((viewHeight - frameHeight) / 2).coerceAtLeast(0)
-            } else {
-                0
-            }
-            listOf(
-                Rect(0, top, eyeWidth, top + frameHeight),
-                Rect(eyeWidth, top, eyeWidth * 2, top + frameHeight),
-            )
-        } else {
-            val frameHeight = if (config.fullFrameEnabled) {
-                (viewWidth * 9f / 16f).toInt().coerceAtLeast(1)
-            } else {
-                viewHeight
-            }
-            val top = if (config.fullFrameEnabled) {
-                ((viewHeight - frameHeight) / 2).coerceAtLeast(0)
-            } else {
-                0
-            }
-            listOf(Rect(0, top, viewWidth, top + frameHeight))
-        }
     }
 
     private fun drawSbsTexture(base: FloatArray, handle: Int) {
@@ -368,39 +314,6 @@ private class StreamRenderer : GLSurfaceView.Renderer, SurfaceTexture.OnFrameAva
         GLES20.glDisable(GLES20.GL_BLEND)
     }
 
-    private fun drawStatusOverlay() {
-        val bitmap = statusBitmap ?: return
-        if (statusDirty) {
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, statusTextureId)
-            GLUtils.texImage2D(GLES20.GL_TEXTURE_2D, 0, bitmap, 0)
-            statusDirty = false
-        }
-
-        GLES20.glEnable(GLES20.GL_BLEND)
-        GLES20.glBlendFunc(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE_MINUS_SRC_ALPHA)
-        GLES20.glUseProgram(menuProgram)
-        GLES20.glUniform1f(menuAlphaHandle, 1f)
-        GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
-        GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, statusTextureId)
-        GLES20.glUniform1i(menuTextureHandle, 0)
-
-        vertexBuffer.position(0)
-        GLES20.glVertexAttribPointer(menuPositionHandle, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer)
-        GLES20.glEnableVertexAttribArray(menuPositionHandle)
-
-        vertexBuffer.position(2)
-        GLES20.glVertexAttribPointer(menuTexCoordHandle, 2, GLES20.GL_FLOAT, false, 16, vertexBuffer)
-        GLES20.glEnableVertexAttribArray(menuTexCoordHandle)
-
-        if (config.sbsEnabled) {
-            drawStatusEye(left = true)
-            drawStatusEye(left = false)
-        } else {
-            drawStatusMono()
-        }
-        GLES20.glDisable(GLES20.GL_BLEND)
-    }
-
     private fun drawMenuEye(left: Boolean) {
         val matrix = menuBaseMatrix(left)
         GLES20.glUniformMatrix4fv(menuMvpHandle, 1, false, matrix, 0)
@@ -420,25 +333,6 @@ private class StreamRenderer : GLSurfaceView.Renderer, SurfaceTexture.OnFrameAva
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
     }
 
-    private fun drawStatusEye(left: Boolean) {
-        val matrix = statusBaseMatrix(left)
-        GLES20.glUniformMatrix4fv(menuMvpHandle, 1, false, matrix, 0)
-        val eyeWidth = width / 2
-        val viewportHeight = if (config.fullFrameEnabled) (eyeWidth * 9f / 16f).toInt().coerceAtLeast(1) else height
-        val viewportY = if (config.fullFrameEnabled) ((height - viewportHeight) / 2).coerceAtLeast(0) else 0
-        GLES20.glViewport(if (left) 0 else eyeWidth, viewportY, eyeWidth, viewportHeight)
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
-    }
-
-    private fun drawStatusMono() {
-        val matrix = statusBaseMatrix(left = true)
-        GLES20.glUniformMatrix4fv(menuMvpHandle, 1, false, matrix, 0)
-        val viewportHeight = if (config.fullFrameEnabled) (width * 9f / 16f).toInt().coerceAtLeast(1) else height
-        val viewportY = if (config.fullFrameEnabled) ((height - viewportHeight) / 2).coerceAtLeast(0) else 0
-        GLES20.glViewport(0, viewportY, width, viewportHeight)
-        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
-    }
-
     private fun menuBaseMatrix(left: Boolean): FloatArray {
         val matrix = identityMatrix.copyOf()
         Matrix.scaleM(matrix, 0, config.zoom, config.verticalZoom, 1f)
@@ -449,19 +343,6 @@ private class StreamRenderer : GLSurfaceView.Renderer, SurfaceTexture.OnFrameAva
         }
         Matrix.translateM(matrix, 0, shift * 0.2f, config.verticalOffset * 0.2f, 0f)
         Matrix.scaleM(matrix, 0, MENU_WIDTH_SCALE, MENU_HEIGHT_SCALE, 1f)
-        return matrix
-    }
-
-    private fun statusBaseMatrix(left: Boolean): FloatArray {
-        val matrix = identityMatrix.copyOf()
-        Matrix.scaleM(matrix, 0, config.zoom, config.verticalZoom, 1f)
-        val shift = if (config.sbsEnabled) {
-            if (left) -config.horizontalOffset else config.horizontalOffset
-        } else {
-            config.horizontalOffset
-        }
-        Matrix.translateM(matrix, 0, shift * 0.2f, config.verticalOffset * 0.2f + 0.72f, 0f)
-        Matrix.scaleM(matrix, 0, STATUS_WIDTH_SCALE, STATUS_HEIGHT_SCALE, 1f)
         return matrix
     }
 
@@ -528,29 +409,6 @@ private class StreamRenderer : GLSurfaceView.Renderer, SurfaceTexture.OnFrameAva
             canvas.drawText(row.value, MENU_BITMAP_WIDTH - 58f, top, paint)
             paint.textAlign = Paint.Align.LEFT
         }
-        return bitmap
-    }
-
-    private fun createStatusBitmap(text: String): Bitmap {
-        val bitmap = Bitmap.createBitmap(STATUS_BITMAP_WIDTH, STATUS_BITMAP_HEIGHT, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val panel = RectF(14f, 22f, STATUS_BITMAP_WIDTH - 14f, STATUS_BITMAP_HEIGHT - 22f)
-
-        paint.color = Color.argb(220, 8, 15, 22)
-        canvas.drawRoundRect(panel, 20f, 20f, paint)
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2f
-        paint.color = Color.argb(190, 132, 210, 196)
-        canvas.drawRoundRect(panel, 20f, 20f, paint)
-        paint.style = Paint.Style.FILL
-
-        paint.typeface = android.graphics.Typeface.create(android.graphics.Typeface.SANS_SERIF, android.graphics.Typeface.BOLD)
-        paint.textSize = 24f
-        paint.color = Color.WHITE
-        paint.textAlign = Paint.Align.CENTER
-        canvas.drawText(text.take(56), STATUS_BITMAP_WIDTH / 2f, 70f, paint)
-        paint.textAlign = Paint.Align.LEFT
         return bitmap
     }
 
@@ -631,9 +489,5 @@ private class StreamRenderer : GLSurfaceView.Renderer, SurfaceTexture.OnFrameAva
         private const val MENU_BITMAP_HEIGHT = 512
         private const val MENU_WIDTH_SCALE = 0.82f
         private const val MENU_HEIGHT_SCALE = 0.66f
-        private const val STATUS_BITMAP_WIDTH = 768
-        private const val STATUS_BITMAP_HEIGHT = 128
-        private const val STATUS_WIDTH_SCALE = 0.82f
-        private const val STATUS_HEIGHT_SCALE = 0.18f
     }
 }

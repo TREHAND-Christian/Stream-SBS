@@ -49,9 +49,6 @@ class MainActivity : AppCompatActivity() {
     private var receiverJob: Job? = null
     private var udpReceiver: UdpVideoReceiver? = null
     private var renderConfig: ReceiverRenderConfig = ReceiverRenderConfig()
-    private var overlayJob: Job? = null
-    private var lastModeKey: String? = null
-    private var currentStatusText: String? = null
     private var cameraSurface: android.view.Surface? = null
     private var cameraController: CameraGpuController? = null
     private var menuVisible = false
@@ -89,8 +86,6 @@ class MainActivity : AppCompatActivity() {
     private val cameraPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             applyCameraState()
-        } else {
-            setOverlayText("camera permission denied")
         }
     }
 
@@ -113,7 +108,7 @@ class MainActivity : AppCompatActivity() {
         binding.streamView.applyConfig(renderConfig)
         binding.streamView.whenSurfaceReady { surface ->
             if (udpReceiver != null) return@whenSurfaceReady
-            udpReceiver = UdpVideoReceiver(surface, ::setOverlayText, ::onVideoStats)
+            udpReceiver = UdpVideoReceiver(surface, {}, ::onVideoStats)
             receiverJob = lifecycleScope.launch { udpReceiver?.run() }
         }
         binding.streamView.whenCameraSurfaceReady { surface ->
@@ -122,7 +117,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         applyRenderConfigIntent(intent)
-        showDisplayModeOverlay(renderConfig)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -164,7 +158,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        overlayJob?.cancel()
         receiverJob?.cancel()
         udpReceiver?.close()
         cameraController?.close()
@@ -192,46 +185,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun showDisplayModeOverlay(config: ReceiverRenderConfig) {
-        if (menuVisible) return
-        binding.root.post {
-            if (menuVisible) return@post
-            val screenWidth = maxOf(binding.root.width, binding.root.height)
-            val screenHeight = minOf(binding.root.width, binding.root.height)
-            val rects = binding.streamView.computeDisplayRects()
-            if (screenWidth <= 0 || screenHeight <= 0 || rects.isEmpty()) return@post
-
-            val modeLabel = if (config.sbsEnabled) "Mode Lunette" else "Mode Tablette"
-            val framesLabel = if (rects.size > 1) {
-                val eye = rects.first()
-                "2 x ${eye.width()}x${eye.height()}"
-            } else {
-                val frame = rects.first()
-                "1 x ${frame.width()}x${frame.height()}"
-            }
-            val overlayText = "$modeLabel | écran ${screenWidth}x${screenHeight} | cadres $framesLabel"
-            val overlayKey = "$modeLabel|$screenWidth|$screenHeight|$framesLabel"
-            if (overlayKey == lastModeKey && currentStatusText == overlayText) return@post
-            lastModeKey = overlayKey
-            showStatusOverlay(overlayText)
-            overlayJob?.cancel()
-            overlayJob = lifecycleScope.launch {
-                delay(3000)
-                if (!menuVisible && currentStatusText == overlayText) {
-                    clearStatusOverlay()
-                }
-            }
-        }
-    }
-
-    private fun setOverlayText(text: String) {
-        binding.root.post {
-            if (!menuVisible) {
-                showStatusOverlay(text)
-            }
-        }
-    }
-
     private fun onVideoStats(stats: VideoStats) {
         latestVideoStats = stats
         sendRenderConfigToSender()
@@ -249,7 +202,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         if (cameraController == null) {
-            cameraController = CameraGpuController(this, surface, ::setOverlayText)
+            cameraController = CameraGpuController(this, surface, {})
         }
         cameraController?.start()
     }
@@ -356,13 +309,11 @@ class MainActivity : AppCompatActivity() {
     private fun toggleCamera() {
         renderConfig = renderConfig.copy(cameraEnabled = !renderConfig.cameraEnabled)
         applyRenderConfig()
-        showTemporaryMessage(if (renderConfig.cameraEnabled) "Camera ON" else "Camera OFF")
     }
 
     private fun openMenu() {
         menuVisible = true
         menuEditing = false
-        clearStatusOverlay()
         renderMenu()
     }
 
@@ -462,8 +413,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderMenu() {
-        overlayJob?.cancel()
-        clearStatusOverlay()
         binding.streamView.setMenuOverlay(menuState())
         sendRenderConfigToSender()
     }
@@ -501,41 +450,16 @@ class MainActivity : AppCompatActivity() {
             MenuItem.OFFSET_V -> "%.2f".format(renderConfig.verticalOffset)
         }
 
-    private fun showTemporaryMessage(text: String) {
-        if (menuVisible) return
-        showStatusOverlay(text)
-        overlayJob?.cancel()
-        overlayJob = lifecycleScope.launch {
-            delay(1200)
-            if (!menuVisible && currentStatusText == text) {
-                clearStatusOverlay()
-            }
-        }
-    }
-
     private fun prepareOverlayLayers() {
         binding.streamView.setZOrderOnTop(false)
         binding.streamView.setZOrderMediaOverlay(false)
         binding.blackOverlay.elevation = 8f
     }
 
-    private fun showStatusOverlay(text: String) {
-        currentStatusText = text
-        binding.streamView.setStatusOverlay(text)
-    }
-
-    private fun clearStatusOverlay() {
-        currentStatusText = null
-        binding.streamView.setStatusOverlay(null)
-    }
-
     private fun toggleBlackout() {
         screenBlackout = !screenBlackout
         binding.blackOverlay.visibility = if (screenBlackout) View.VISIBLE else View.GONE
     }
-
-    private fun displayModeKey(config: ReceiverRenderConfig): String =
-        if (config.sbsEnabled) "glasses" else "tablet"
 
     private fun applyRenderConfigIntent(intent: Intent?) {
         val serializedConfig = intent?.getStringExtra(ReceiverForegroundLauncher.EXTRA_CONFIG) ?: return
@@ -547,14 +471,11 @@ class MainActivity : AppCompatActivity() {
     private fun applySenderConfig(config: ReceiverRenderConfig, address: InetAddress) {
         focusReceiverApp()
         senderAddress = address
-        val previousKey = displayModeKey(renderConfig)
         renderConfig = config
         binding.streamView.applyConfig(config)
         applyCameraState()
         if (menuVisible) {
             renderMenu()
-        } else if (displayModeKey(config) != previousKey) {
-            showDisplayModeOverlay(config)
         }
     }
 
