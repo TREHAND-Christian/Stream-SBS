@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">Stream SBS Receiver</string>
-    <string name="receiver_waiting">Waiting for sender stream</string>
+    <string name="receiver_waiting">Receiver ready</string>
     <string name="receiver_service_channel">Receiver network</string>
-    <string name="receiver_service_notification">Waiting for sender</string>
+    <string name="receiver_service_notification">Receiver service active</string>
+    <string name="receiver_sender_connected">Sender connected</string>
 </resources>

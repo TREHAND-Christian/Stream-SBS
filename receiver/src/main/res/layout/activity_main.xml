@@ -17,19 +17,4 @@
         android:background="#000000"
         android:visibility="gone" />
 
-    <TextView
-        android:id="@+id/displayModeText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="20dp"
-        android:background="#AA111111"
-        android:paddingStart="14dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="14dp"
-        android:paddingBottom="8dp"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
-        android:visibility="gone" />
-
 </FrameLayout>

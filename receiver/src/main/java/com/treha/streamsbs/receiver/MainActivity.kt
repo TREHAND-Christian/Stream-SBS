@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
@@ -50,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     private var renderConfig: ReceiverRenderConfig = ReceiverRenderConfig()
     private var overlayJob: Job? = null
     private var lastModeKey: String? = null
+    private var currentStatusText: String? = null
     private var cameraSurface: android.view.Surface? = null
     private var cameraController: CameraGpuController? = null
     private var menuVisible = false
@@ -92,6 +94,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val notificationPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        // The receiver still runs without this, but Android may hide launch alerts.
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -101,6 +107,7 @@ class MainActivity : AppCompatActivity() {
         configurePresentation()
         hideSystemBars()
         prepareOverlayLayers()
+        requestNotificationPermission()
         ReceiverNetworkService.start(this)
 
         binding.streamView.applyConfig(renderConfig)
@@ -204,30 +211,30 @@ class MainActivity : AppCompatActivity() {
             }
             val overlayText = "$modeLabel | écran ${screenWidth}x${screenHeight} | cadres $framesLabel"
             val overlayKey = "$modeLabel|$screenWidth|$screenHeight|$framesLabel"
-            if (overlayKey == lastModeKey && binding.displayModeText.visibility == android.view.View.VISIBLE) return@post
+            if (overlayKey == lastModeKey && currentStatusText == overlayText) return@post
             lastModeKey = overlayKey
-            showOverlayText(overlayText)
+            showStatusOverlay(overlayText)
             overlayJob?.cancel()
             overlayJob = lifecycleScope.launch {
                 delay(3000)
-                if (!menuVisible && binding.displayModeText.text == overlayText) {
-                    binding.displayModeText.visibility = android.view.View.GONE
+                if (!menuVisible && currentStatusText == overlayText) {
+                    clearStatusOverlay()
                 }
             }
         }
     }
 
     private fun setOverlayText(text: String) {
-        binding.displayModeText.post {
+        binding.root.post {
             if (!menuVisible) {
-                showOverlayText(text)
+                showStatusOverlay(text)
             }
         }
     }
 
     private fun onVideoStats(stats: VideoStats) {
         latestVideoStats = stats
-        binding.displayModeText.post {
+        binding.root.post {
             if (menuVisible) return@post
             val profile = stats.profile
             val profileLabel = if (profile.width > 0 && profile.height > 0) {
@@ -235,7 +242,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 "profil inconnu"
             }
-            showOverlayText("$profileLabel | rendu ${"%.1f".format(stats.fps)} fps | lat ${stats.latencyMs} ms")
+            showStatusOverlay("$profileLabel | rendu ${"%.1f".format(stats.fps)} fps | lat ${stats.latencyMs} ms")
         }
         sendRenderConfigToSender()
     }
@@ -255,6 +262,14 @@ class MainActivity : AppCompatActivity() {
             cameraController = CameraGpuController(this, surface, ::setOverlayText)
         }
         cameraController?.start()
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     private fun handleVolumeUp(event: KeyEvent) {
@@ -357,7 +372,7 @@ class MainActivity : AppCompatActivity() {
     private fun openMenu() {
         menuVisible = true
         menuEditing = false
-        binding.displayModeText.visibility = View.GONE
+        clearStatusOverlay()
         renderMenu()
     }
 
@@ -458,7 +473,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderMenu() {
         overlayJob?.cancel()
-        binding.displayModeText.visibility = View.GONE
+        clearStatusOverlay()
         binding.streamView.setMenuOverlay(menuState())
         sendRenderConfigToSender()
     }
@@ -498,12 +513,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun showTemporaryMessage(text: String) {
         if (menuVisible) return
-        showOverlayText(text)
+        showStatusOverlay(text)
         overlayJob?.cancel()
         overlayJob = lifecycleScope.launch {
             delay(1200)
-            if (!menuVisible && binding.displayModeText.text == text) {
-                binding.displayModeText.visibility = View.GONE
+            if (!menuVisible && currentStatusText == text) {
+                clearStatusOverlay()
             }
         }
     }
@@ -512,14 +527,16 @@ class MainActivity : AppCompatActivity() {
         binding.streamView.setZOrderOnTop(false)
         binding.streamView.setZOrderMediaOverlay(false)
         binding.blackOverlay.elevation = 8f
-        binding.displayModeText.elevation = 16f
-        binding.displayModeText.bringToFront()
     }
 
-    private fun showOverlayText(text: String) {
-        binding.displayModeText.text = text
-        binding.displayModeText.visibility = View.VISIBLE
-        binding.displayModeText.bringToFront()
+    private fun showStatusOverlay(text: String) {
+        currentStatusText = text
+        binding.streamView.setStatusOverlay(text)
+    }
+
+    private fun clearStatusOverlay() {
+        currentStatusText = null
+        binding.streamView.setStatusOverlay(null)
     }
 
     private fun toggleBlackout() {

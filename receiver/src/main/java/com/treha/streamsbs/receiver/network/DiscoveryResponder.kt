@@ -7,12 +7,14 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.net.DatagramPacket
 import java.net.DatagramSocket
+import java.net.InetAddress
 import java.net.SocketException
 import java.net.SocketTimeoutException
 import kotlin.coroutines.coroutineContext
 
 class DiscoveryResponder(
     private val deviceName: String,
+    private val onRequest: (InetAddress) -> Unit = {},
 ) {
     suspend fun run() = withContext(Dispatchers.IO) {
         DatagramSocket(Ports.DISCOVERY).use { socket ->
@@ -25,6 +27,7 @@ class DiscoveryResponder(
                     socket.receive(packet)
                     val message = String(packet.data, 0, packet.length, Charsets.UTF_8)
                     if (message != DiscoveryProtocol.REQUEST) continue
+                    packet.address?.let(onRequest)
                     val payload = DiscoveryProtocol.buildResponse(deviceName).toByteArray(Charsets.UTF_8)
                     socket.send(DatagramPacket(payload, payload.size, packet.address, packet.port))
                 } catch (_: SocketTimeoutException) {
