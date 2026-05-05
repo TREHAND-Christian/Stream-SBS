@@ -234,16 +234,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun onVideoStats(stats: VideoStats) {
         latestVideoStats = stats
-        binding.root.post {
-            if (menuVisible) return@post
-            val profile = stats.profile
-            val profileLabel = if (profile.width > 0 && profile.height > 0) {
-                "${profile.width}x${profile.height} @${profile.targetFps} fps"
-            } else {
-                "profil inconnu"
-            }
-            showStatusOverlay("$profileLabel | rendu ${"%.1f".format(stats.fps)} fps | lat ${stats.latencyMs} ms")
-        }
         sendRenderConfigToSender()
     }
 

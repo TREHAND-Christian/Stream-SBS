@@ -1,6 +1,5 @@
 package com.treha.streamsbs.receiver.network
 
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -21,7 +20,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.net.InetAddress
 
@@ -34,6 +32,7 @@ class ReceiverNetworkService : Service() {
     override fun onCreate() {
         super.onCreate()
         createChannel()
+        getSystemService(NotificationManager::class.java).cancelAll()
         ServiceCompat.startForeground(
             this,
             NOTIFICATION_ID,
@@ -90,14 +89,12 @@ class ReceiverNetworkService : Service() {
             serializedConfig = config.serialize(),
             senderHost = host,
         )
-        showLaunchNotification(config, host)
     }
 
     private fun onSenderDiscoveryRequest() {
         if (!shouldHandleDiscoveryLaunch()) return
         wakeDisplayForLaunch()
         ReceiverForegroundLauncher.bringToFront(context = this, force = true)
-        showLaunchNotification()
     }
 
     private fun shouldHandleDiscoveryLaunch(): Boolean {
@@ -145,15 +142,6 @@ class ReceiverNetworkService : Service() {
                 NotificationManager.IMPORTANCE_MIN,
             ),
         )
-        manager.createNotificationChannel(
-            NotificationChannel(
-                LAUNCH_CHANNEL_ID,
-                getString(R.string.app_name),
-                NotificationManager.IMPORTANCE_HIGH,
-            ).apply {
-                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            },
-        )
     }
 
     private fun buildNotification() =
@@ -176,46 +164,9 @@ class ReceiverNetworkService : Service() {
             .setLocalOnly(true)
             .build()
 
-    private fun showLaunchNotification(config: ReceiverRenderConfig? = null, senderHost: String? = null) {
-        val launchIntent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            config?.let { putExtra(ReceiverForegroundLauncher.EXTRA_CONFIG, it.serialize()) }
-            senderHost?.let { putExtra(ReceiverForegroundLauncher.EXTRA_HOST, it) }
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            this,
-            1,
-            launchIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val notification = NotificationCompat.Builder(this, LAUNCH_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.presence_video_online)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText(getString(R.string.receiver_sender_connected))
-            .setContentIntent(pendingIntent)
-            .setFullScreenIntent(pendingIntent, true)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setAutoCancel(true)
-            .setLocalOnly(true)
-            .build()
-
-        getSystemService(NotificationManager::class.java).notify(LAUNCH_NOTIFICATION_ID, notification)
-        serviceScope.launch {
-            delay(5_000L)
-            getSystemService(NotificationManager::class.java).cancel(LAUNCH_NOTIFICATION_ID)
-        }
-    }
-
     companion object {
         private const val CHANNEL_ID = "receiver_network"
-        private const val LAUNCH_CHANNEL_ID = "receiver_launch"
         private const val NOTIFICATION_ID = 2001
-        private const val LAUNCH_NOTIFICATION_ID = 2002
         private const val DISCOVERY_LAUNCH_DEBOUNCE_MS = 15_000L
 
         fun start(context: Context) {
