@@ -6,8 +6,8 @@ data class ReceiverEndpoint(
 )
 
 object DiscoveryProtocol {
-    const val REQUEST = "STREAM_SBS_55_DISCOVER"
-    private const val RESPONSE_PREFIX = "STREAM_SBS_55_RECEIVER"
+    const val REQUEST = "STREAM_SBS_DISCOVER"
+    private const val RESPONSE_PREFIX = "STREAM_SBS_RECEIVER"
 
     fun buildResponse(deviceName: String): String = "$RESPONSE_PREFIX|${deviceName.ifBlank { "Receiver" }}"
 
