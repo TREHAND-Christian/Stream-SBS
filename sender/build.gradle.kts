@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.treha.streamsbs55.sender"
+    namespace = "com.treha.streamsbs.sender"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.treha.streamsbs55.sender"
+        applicationId = "com.treha.streamsbs.sender"
         minSdk = 29
         targetSdk = 34
         versionCode = 103

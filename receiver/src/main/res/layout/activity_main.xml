@@ -5,7 +5,7 @@
     android:layout_height="match_parent"
     android:background="#000000">
 
-    <com.treha.streamsbs55.receiver.view.StreamVrSurfaceView
+    <com.treha.streamsbs.receiver.view.StreamVrSurfaceView
         android:id="@+id/streamView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
