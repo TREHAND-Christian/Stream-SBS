@@ -11,8 +11,8 @@ android {
         applicationId = "com.treha.streamsbs55.receiver"
         minSdk = 29
         targetSdk = 34
-        versionCode = 1
-        versionName = "5.5.0"
+        versionCode = 103
+        versionName = "1.0.3"
     }
 
     buildTypes {

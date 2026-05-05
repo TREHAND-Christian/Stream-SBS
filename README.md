@@ -40,9 +40,15 @@ sender/    Sender app: screen capture, H.264 encoding, UDP streaming
 receiver/  Receiver app: H.264 decoding, OpenGL rendering, local controls
 ```
 
-### Network Flow
+### Recommended Network Setup
 
-Both smartphones must be connected to the same local network.
+For the most reliable behavior, create a Wi-Fi hotspot on the sender phone and connect the receiver phone to that hotspot.
+
+This setup keeps both devices on a direct local network, improves receiver discovery, and avoids many router/client-isolation issues found on public or shared Wi-Fi networks.
+
+When the receiver phone connects to a Wi-Fi network, the receiver app attempts to bring itself to the foreground automatically. This helps reduce the need to use the receiver touchscreen after it has joined the sender hotspot. Android may still limit background activity launches on some devices or OS versions, so the receiver app can always be opened manually if needed.
+
+### Network Flow
 
 Used ports:
 
@@ -59,6 +65,7 @@ Used ports:
 - JDK 17.
 - Android SDK with `compileSdk 34`.
 - Two Android devices on the same local network.
+- Recommended: sender hotspot enabled, receiver connected to that hotspot.
 - Android 10 or newer (`minSdk 29`).
 
 ## Build
@@ -97,13 +104,14 @@ adb install sender/build/outputs/apk/debug/sender-debug.apk
 
 ## Usage
 
-1. Connect both smartphones to the same local network.
-2. Start `Stream SBS Receiver` on the receiver phone.
-3. Start `Stream SBS Sender` on the sender phone.
-4. Select a video profile if needed.
-5. Tap `Start Stream`.
-6. Accept the Android screen capture prompt and select the full screen.
-7. The receiver displays the stream in SBS mode.
+1. Enable the Wi-Fi hotspot on the sender phone.
+2. Connect the receiver phone to the sender hotspot.
+3. The receiver app should automatically move to the foreground when Wi-Fi connects. If Android blocks the auto-launch, open `Stream SBS Receiver` manually.
+4. Start `Stream SBS Sender` on the sender phone.
+5. Select a video profile if needed.
+6. Tap `Start Stream`.
+7. Accept the Android screen capture prompt and select the full screen.
+8. The receiver displays the stream in SBS mode.
 
 ## Receiver Controls
 
