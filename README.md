@@ -73,21 +73,16 @@ Used ports:
 From the repository root:
 
 ```bash
-./gradlew assembleDebug
+./gradlew assemble
 ```
 
 On Windows:
 
 ```powershell
-.\gradlew.bat assembleDebug
+.\gradlew.bat assemble
 ```
 
-Debug APKs are generated in:
-
-```text
-sender/build/outputs/apk/debug/
-receiver/build/outputs/apk/debug/
-```
+APKs are generated in the module build output directories.
 
 ## Installation
 
@@ -98,8 +93,8 @@ Install the `sender` app on the smartphone whose screen will be streamed.
 Example with ADB:
 
 ```bash
-adb install receiver/build/outputs/apk/debug/receiver-debug.apk
-adb install sender/build/outputs/apk/debug/sender-debug.apk
+adb install stream-sbs-receiver-<version>.apk
+adb install stream-sbs-sender-<version>.apk
 ```
 
 ## Usage
@@ -156,10 +151,10 @@ On Windows:
 
 ## Release APKs
 
-Installable debug APKs are published from GitHub releases:
+Installable APKs are published from GitHub releases:
 
-- `stream-sbs-sender-<version>-debug.apk`
-- `stream-sbs-receiver-<version>-debug.apk`
+- `stream-sbs-sender-<version>.apk`
+- `stream-sbs-receiver-<version>.apk`
 
 These APKs are intended for direct testing and local installation. Production signing is not configured in this repository.
 

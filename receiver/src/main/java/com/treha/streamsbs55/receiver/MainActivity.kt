@@ -22,6 +22,7 @@ import com.treha.streamsbs55.receiver.databinding.ActivityMainBinding
 import com.treha.streamsbs55.receiver.camera.CameraGpuController
 import com.treha.streamsbs55.receiver.network.ControlServer
 import com.treha.streamsbs55.receiver.network.DiscoveryResponder
+import com.treha.streamsbs55.receiver.network.ReceiverForegroundLauncher
 import com.treha.streamsbs55.receiver.stream.UdpVideoReceiver
 import com.treha.streamsbs55.receiver.stream.VideoStats
 import com.treha.streamsbs55.receiver.view.MenuOverlayRow
@@ -110,6 +111,7 @@ class MainActivity : AppCompatActivity() {
         controlJob = lifecycleScope.launch {
             ControlServer { config, address ->
                 runOnUiThread {
+                    focusReceiverApp()
                     senderAddress = address
                     val previousKey = displayModeKey(renderConfig)
                     renderConfig = config
@@ -531,5 +533,13 @@ class MainActivity : AppCompatActivity() {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
+    }
+
+    private fun focusReceiverApp() {
+        ReceiverForegroundLauncher.bringToFront(this, force = true)
+        configurePresentation()
+        hideSystemBars()
+        binding.root.isFocusableInTouchMode = true
+        binding.root.requestFocus()
     }
 }
