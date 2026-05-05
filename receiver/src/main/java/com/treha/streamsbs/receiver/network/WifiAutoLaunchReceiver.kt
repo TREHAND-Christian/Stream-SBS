@@ -11,6 +11,7 @@ class WifiAutoLaunchReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != WifiManager.NETWORK_STATE_CHANGED_ACTION) return
         if (!isConnectedToWifi(context)) return
+        ReceiverNetworkService.start(context)
         ReceiverForegroundLauncher.bringToFront(context)
     }
 

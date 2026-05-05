@@ -2,7 +2,10 @@ package com.treha.streamsbs.receiver
 
 import android.Manifest
 import android.app.KeyguardManager
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.KeyEvent
@@ -11,6 +14,7 @@ import android.view.WindowManager
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.content.ContextCompat.registerReceiver
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -20,9 +24,8 @@ import com.treha.streamsbs.common.protocol.Ports
 import com.treha.streamsbs.common.protocol.VideoProfiles
 import com.treha.streamsbs.receiver.databinding.ActivityMainBinding
 import com.treha.streamsbs.receiver.camera.CameraGpuController
-import com.treha.streamsbs.receiver.network.ControlServer
-import com.treha.streamsbs.receiver.network.DiscoveryResponder
 import com.treha.streamsbs.receiver.network.ReceiverForegroundLauncher
+import com.treha.streamsbs.receiver.network.ReceiverNetworkService
 import com.treha.streamsbs.receiver.stream.UdpVideoReceiver
 import com.treha.streamsbs.receiver.stream.VideoStats
 import com.treha.streamsbs.receiver.view.MenuOverlayRow
@@ -34,6 +37,7 @@ import kotlinx.coroutines.launch
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.InetAddress.getByName
 
 class MainActivity : AppCompatActivity() {
     private companion object {
@@ -41,8 +45,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var binding: ActivityMainBinding
-    private var discoveryJob: Job? = null
-    private var controlJob: Job? = null
     private var receiverJob: Job? = null
     private var udpReceiver: UdpVideoReceiver? = null
     private var renderConfig: ReceiverRenderConfig = ReceiverRenderConfig()
@@ -59,6 +61,12 @@ class MainActivity : AppCompatActivity() {
     private var senderAddress: InetAddress? = null
     private var latestVideoStats: VideoStats? = null
     private var receiverConfigVersion = 0L
+
+    private val renderConfigReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            applyRenderConfigIntent(intent)
+        }
+    }
 
     private enum class MenuItem(val label: String) {
         RESOLUTION("Definition"),
@@ -93,6 +101,7 @@ class MainActivity : AppCompatActivity() {
         configurePresentation()
         hideSystemBars()
         prepareOverlayLayers()
+        ReceiverNetworkService.start(this)
 
         binding.streamView.applyConfig(renderConfig)
         binding.streamView.whenSurfaceReady { surface ->
@@ -105,32 +114,29 @@ class MainActivity : AppCompatActivity() {
             applyCameraState()
         }
 
-        discoveryJob = lifecycleScope.launch {
-            DiscoveryResponder(deviceName = android.os.Build.MODEL ?: "Receiver").run()
-        }
-        controlJob = lifecycleScope.launch {
-            ControlServer { config, address ->
-                runOnUiThread {
-                    focusReceiverApp()
-                    senderAddress = address
-                    val previousKey = displayModeKey(renderConfig)
-                    renderConfig = config
-                    binding.streamView.applyConfig(config)
-                    applyCameraState()
-                    if (menuVisible) {
-                        renderMenu()
-                    } else if (displayModeKey(config) != previousKey) {
-                        showDisplayModeOverlay(config)
-                    }
-                }
-            }.run()
-        }
-
+        applyRenderConfigIntent(intent)
         showDisplayModeOverlay(renderConfig)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        applyRenderConfigIntent(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        registerReceiver(
+            this,
+            renderConfigReceiver,
+            IntentFilter(ReceiverForegroundLauncher.ACTION_RENDER_CONFIG),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
     }
 
     override fun onResume() {
         super.onResume()
+        ReceiverNetworkService.start(this)
         configurePresentation()
         hideSystemBars()
         if (menuVisible) renderMenu()
@@ -145,11 +151,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onStop() {
+        runCatching { unregisterReceiver(renderConfigReceiver) }
+        super.onStop()
+    }
+
     override fun onDestroy() {
         overlayJob?.cancel()
         receiverJob?.cancel()
-        controlJob?.cancel()
-        discoveryJob?.cancel()
         udpReceiver?.close()
         cameraController?.close()
         super.onDestroy()
@@ -520,6 +529,27 @@ class MainActivity : AppCompatActivity() {
 
     private fun displayModeKey(config: ReceiverRenderConfig): String =
         if (config.sbsEnabled) "glasses" else "tablet"
+
+    private fun applyRenderConfigIntent(intent: Intent?) {
+        val serializedConfig = intent?.getStringExtra(ReceiverForegroundLauncher.EXTRA_CONFIG) ?: return
+        val config = ReceiverRenderConfig.parse(serializedConfig) ?: return
+        val host = intent.getStringExtra(ReceiverForegroundLauncher.EXTRA_HOST) ?: return
+        applySenderConfig(config, getByName(host))
+    }
+
+    private fun applySenderConfig(config: ReceiverRenderConfig, address: InetAddress) {
+        focusReceiverApp()
+        senderAddress = address
+        val previousKey = displayModeKey(renderConfig)
+        renderConfig = config
+        binding.streamView.applyConfig(config)
+        applyCameraState()
+        if (menuVisible) {
+            renderMenu()
+        } else if (displayModeKey(config) != previousKey) {
+            showDisplayModeOverlay(config)
+        }
+    }
 
     private fun configurePresentation() {
         setShowWhenLocked(true)

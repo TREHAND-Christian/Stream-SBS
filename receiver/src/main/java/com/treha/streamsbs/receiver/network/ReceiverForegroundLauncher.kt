@@ -6,7 +6,16 @@ import android.os.SystemClock
 import com.treha.streamsbs.receiver.MainActivity
 
 object ReceiverForegroundLauncher {
-    fun bringToFront(context: Context, force: Boolean = false) {
+    const val ACTION_RENDER_CONFIG = "com.treha.streamsbs.receiver.RENDER_CONFIG"
+    const val EXTRA_CONFIG = "config"
+    const val EXTRA_HOST = "host"
+
+    fun bringToFront(
+        context: Context,
+        force: Boolean = false,
+        serializedConfig: String? = null,
+        senderHost: String? = null,
+    ) {
         if (!force && !canLaunchNow(context)) return
 
         runCatching {
@@ -16,6 +25,8 @@ object ReceiverForegroundLauncher {
                     addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                     addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    serializedConfig?.let { putExtra(EXTRA_CONFIG, it) }
+                    senderHost?.let { putExtra(EXTRA_HOST, it) }
                 },
             )
         }
